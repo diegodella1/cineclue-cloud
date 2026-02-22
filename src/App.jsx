@@ -26,13 +26,15 @@ const About = lazy(() => import('./pages/About'))
 function RequireAuth({ children }) {
   const user = useAuthStore(s => s.user)
   const profile = useAuthStore(s => s.profile)
+  const profileLoaded = useAuthStore(s => s.profileLoaded)
   const loading = useAuthStore(s => s.loading)
   const needsOnboarding = useAuthStore(s => s.needsOnboarding)
   const location = useLocation()
 
   if (loading) return <Loading />
   if (!user) return <Navigate to="/auth" state={{ from: location }} replace />
-  if (!profile) return <Loading />
+  if (!profileLoaded) return <Loading />
+  if (!profile) return <Navigate to="/auth" state={{ from: location }} replace />
   if (needsOnboarding() && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />
   }

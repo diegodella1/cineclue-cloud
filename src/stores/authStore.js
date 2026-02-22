@@ -6,6 +6,7 @@ export const useAuthStore = create((set, get) => ({
   profile: null,
   session: null,
   loading: true,
+  profileLoaded: false,
   pendingDuels: 0,
   setPendingDuels: (n) => set({ pendingDuels: n }),
 
@@ -19,16 +20,30 @@ export const useAuthStore = create((set, get) => ({
       if (session?.user) {
         set({ session, user: session.user })
         try {
-          const [profileRes, duelsRes] = await Promise.all([
-            supabase.from('cc_profiles').select('*').eq('id', session.user.id).single(),
-            supabase.rpc('cc_count_pending_duels', { p_user_id: session.user.id }),
-          ])
-          set({ profile: profileRes.data, pendingDuels: duelsRes.data || 0 })
+          const profileRes = await supabase
+            .from('cc_profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+
+          if (profileRes.error) {
+            console.error('Profile fetch error:', profileRes.error)
+          }
+
+          let pendingDuels = 0
+          const duelsRes = await supabase.rpc('cc_count_pending_duels', { p_user_id: session.user.id })
+          if (duelsRes.error) {
+            console.error('Pending duels RPC error:', duelsRes.error)
+          } else {
+            pendingDuels = duelsRes.data || 0
+          }
+
+          set({ profile: profileRes.data, profileLoaded: true, pendingDuels })
         } catch (e) {
           console.error('Profile fetch failed:', e)
         }
       } else {
-        set({ session: null, user: null, profile: null, pendingDuels: 0 })
+        set({ session: null, user: null, profile: null, profileLoaded: false, pendingDuels: 0 })
       }
 
       if (get().loading) set({ loading: false })
