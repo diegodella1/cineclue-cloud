@@ -33,8 +33,16 @@ export default function Profile() {
   useEffect(() => {
     window.OneSignalDeferred = window.OneSignalDeferred || []
     window.OneSignalDeferred.push(async (OneSignal) => {
-      const permission = OneSignal.Notifications.permission
-      setPushEnabled(permission)
+      const granted = OneSignal.Notifications.permission
+      const optedIn = OneSignal.User.PushSubscription.optedIn
+      setPushEnabled(granted && optedIn)
+
+      OneSignal.Notifications.addEventListener('permissionChange', (perm) => {
+        setPushEnabled(perm && OneSignal.User.PushSubscription.optedIn)
+      })
+      OneSignal.User.PushSubscription.addEventListener('change', (sub) => {
+        setPushEnabled(sub.current.optedIn)
+      })
     })
   }, [])
 
@@ -45,10 +53,11 @@ export default function Profile() {
       window.OneSignalDeferred.push(async (OneSignal) => {
         if (!pushEnabled) {
           await OneSignal.Notifications.requestPermission()
-          setPushEnabled(OneSignal.Notifications.permission)
+          if (OneSignal.Notifications.permission) {
+            await OneSignal.User.PushSubscription.optIn()
+          }
         } else {
           await OneSignal.User.PushSubscription.optOut()
-          setPushEnabled(false)
         }
         setPushLoading(false)
       })
