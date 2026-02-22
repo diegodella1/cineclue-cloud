@@ -18,6 +18,8 @@ export default function Profile() {
   const updateProfile = useAuthStore(s => s.updateProfile)
   const { profileData, loading, loadPublicProfile, getSpecialties, getWeaknesses, getFavoriteDecade, getGenreStats } = useProfile()
   const [duelsEnabled, setDuelsEnabled] = useState(profile?.duels_enabled ?? true)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
 
   useEffect(() => {
     if (profile?.username) loadPublicProfile(profile.username)
@@ -26,6 +28,34 @@ export default function Profile() {
   useEffect(() => {
     if (profile) setDuelsEnabled(profile.duels_enabled ?? true)
   }, [profile])
+
+  // Check current push notification status
+  useEffect(() => {
+    window.OneSignalDeferred = window.OneSignalDeferred || []
+    window.OneSignalDeferred.push(async (OneSignal) => {
+      const permission = OneSignal.Notifications.permission
+      setPushEnabled(permission)
+    })
+  }, [])
+
+  const handleTogglePush = async () => {
+    setPushLoading(true)
+    try {
+      window.OneSignalDeferred = window.OneSignalDeferred || []
+      window.OneSignalDeferred.push(async (OneSignal) => {
+        if (!pushEnabled) {
+          await OneSignal.Notifications.requestPermission()
+          setPushEnabled(OneSignal.Notifications.permission)
+        } else {
+          await OneSignal.User.PushSubscription.optOut()
+          setPushEnabled(false)
+        }
+        setPushLoading(false)
+      })
+    } catch {
+      setPushLoading(false)
+    }
+  }
 
   const handleToggleDuels = async () => {
     const newVal = !duelsEnabled
@@ -185,6 +215,23 @@ export default function Profile() {
               className={`relative w-12 h-7 rounded-full transition-colors ${duelsEnabled ? 'bg-gold' : 'bg-dark-border'}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform ${duelsEnabled ? 'translate-x-5' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Push notifications */}
+        <div className="bg-dark-card border border-dark-border rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold">Notificaciones push</p>
+              <p className="text-xs text-text-secondary">Recibir avisos de la peli del dia y duelos</p>
+            </div>
+            <button
+              onClick={handleTogglePush}
+              disabled={pushLoading}
+              className={`relative w-12 h-7 rounded-full transition-colors disabled:opacity-50 ${pushEnabled ? 'bg-gold' : 'bg-dark-border'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform ${pushEnabled ? 'translate-x-5' : ''}`} />
             </button>
           </div>
         </div>
