@@ -11,7 +11,11 @@ export const useAuthStore = create((set, get) => ({
   setPendingDuels: (n) => set({ pendingDuels: n }),
 
   init: () => {
+    // Ensure Supabase processes OAuth tokens from URL hash
+    supabase.auth.getSession()
+
     supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[auth]', event, session?.user?.email || 'no user')
       if (event === 'TOKEN_REFRESHED') {
         set({ session })
         return

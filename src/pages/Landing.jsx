@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import AppShell from '../components/layout/AppShell'
 
@@ -7,8 +7,7 @@ export default function Landing() {
   const user = useAuthStore(s => s.user)
 
   if (user) {
-    navigate('/home', { replace: true })
-    return null
+    return <Navigate to="/home" replace />
   }
 
   return (
