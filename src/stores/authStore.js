@@ -24,27 +24,25 @@ export const useAuthStore = create((set, get) => ({
       if (session?.user) {
         set({ session, user: session.user })
         try {
+          console.log('[auth] fetching profile...')
           const profileRes = await supabase
             .from('cc_profiles')
             .select('*')
             .eq('id', session.user.id)
             .single()
-
-          if (profileRes.error) {
-            console.error('Profile fetch error:', profileRes.error)
-          }
+          console.log('[auth] profile result:', profileRes.error || 'ok')
 
           let pendingDuels = 0
+          console.log('[auth] fetching pending duels...')
           const duelsRes = await supabase.rpc('cc_count_pending_duels', { p_user_id: session.user.id })
-          if (duelsRes.error) {
-            console.error('Pending duels RPC error:', duelsRes.error)
-          } else {
-            pendingDuels = duelsRes.data || 0
-          }
+          console.log('[auth] duels result:', duelsRes.error || 'ok')
+          if (!duelsRes.error) pendingDuels = duelsRes.data || 0
 
           set({ profile: profileRes.data, profileLoaded: true, pendingDuels })
+          console.log('[auth] profile loaded:', !!profileRes.data)
         } catch (e) {
-          console.error('Profile fetch failed:', e)
+          console.error('[auth] fetch failed:', e)
+          set({ profileLoaded: true })
         }
       } else {
         set({ session: null, user: null, profile: null, profileLoaded: false, pendingDuels: 0 })
