@@ -26,7 +26,16 @@ export default function Admin() {
   useEffect(() => {
     if (!user) { setIsAdmin(false); setLoading(false); return }
     supabase.from('cc_admins').select('id').eq('user_id', user.id).maybeSingle()
-      .then(({ data }) => { setIsAdmin(!!data); setLoading(false) })
+      .then(({ data, error }) => {
+        if (error) console.error('[admin] check failed:', error)
+        setIsAdmin(!!data)
+        setLoading(false)
+      })
+      .catch((e) => {
+        console.error('[admin] check error:', e)
+        setIsAdmin(false)
+        setLoading(false)
+      })
   }, [user])
 
   if (loading) return <AppShell><Loading /></AppShell>
