@@ -18,10 +18,9 @@ export const useGameStore = create((set, get) => ({
       set({ loading: false })
       return
     }
-    // Shuffle the result to mix difficulties
-    const shuffled = data.sort(() => Math.random() - 0.5)
+    // Preserve DB order: fácil → medio → difícil (progressive difficulty)
     set({
-      movies: shuffled,
+      movies: data,
       currentRound: 0,
       currentClue: 0,
       roundResults: [],

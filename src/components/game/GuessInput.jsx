@@ -1,16 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 
 export default function GuessInput({ onGuess, onSkip, onReveal, canReveal, shaking, disabled }) {
   const [value, setValue] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef(null)
-
-  // Auto-focus input when component mounts or becomes enabled
-  useEffect(() => {
-    if (!disabled && inputRef.current) {
-      inputRef.current.focus()
-    }
-  }, [disabled])
 
   const handleSubmit = (e) => {
     e.preventDefault()
