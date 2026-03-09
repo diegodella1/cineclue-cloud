@@ -8,7 +8,10 @@ export default function GuessInput({ onGuess, onSkip, onReveal, canReveal, shaki
   // Prevent iOS Safari from auto-opening keyboard when this component mounts
   // (happens when transitioning from RoundResult back to the game)
   useEffect(() => {
-    if (inputRef.current) inputRef.current.blur()
+    const t = setTimeout(() => {
+      if (inputRef.current) inputRef.current.blur()
+    }, 50)
+    return () => clearTimeout(t)
   }, [])
 
   const handleSubmit = (e) => {
