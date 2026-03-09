@@ -93,6 +93,10 @@ body {
   padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
 /* Focus ring for accessibility */
 :focus-visible {
   outline: 2px solid var(--color-gold);

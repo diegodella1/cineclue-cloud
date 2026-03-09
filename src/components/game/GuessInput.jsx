@@ -1,9 +1,15 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 export default function GuessInput({ onGuess, onSkip, onReveal, canReveal, shaking, disabled }) {
   const [value, setValue] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef(null)
+
+  // Prevent iOS Safari from auto-opening keyboard when this component mounts
+  // (happens when transitioning from RoundResult back to the game)
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.blur()
+  }, [])
 
   const handleSubmit = (e) => {
     e.preventDefault()
