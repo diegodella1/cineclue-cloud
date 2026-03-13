@@ -167,6 +167,10 @@ const sounds = {
 // ── Public API ──
 
 export const sfx = {
+  /** Warm up AudioContext — call from a user gesture (click/tap) */
+  warmup() {
+    try { getCtx() } catch {}
+  },
   play(name) {
     if (muted) return
     try {

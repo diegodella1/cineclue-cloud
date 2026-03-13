@@ -65,6 +65,7 @@ export default function PartyPlayer() {
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
     if (!input.trim()) return
+    sfx.warmup()
     const result = await handleSubmitAnswer(input.trim())
     if (result?.correct) {
       setInput('')

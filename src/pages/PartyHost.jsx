@@ -70,6 +70,7 @@ export default function PartyHost() {
   const currentMovie = room?.movies?.[currentRound]
 
   const handleStart = useCallback(() => {
+    sfx.warmup()
     setShowCountdown(true)
   }, [])
 
