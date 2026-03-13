@@ -6,6 +6,7 @@
 ALTER TABLE cc_party_rooms ADD COLUMN IF NOT EXISTS max_players INT DEFAULT 20;
 
 -- Update cc_party_create_room to accept max_players
+DROP FUNCTION IF EXISTS cc_party_create_room(UUID, INT);
 DROP FUNCTION IF EXISTS cc_party_create_room(UUID, INT, BOOLEAN);
 
 CREATE OR REPLACE FUNCTION cc_party_create_room(
