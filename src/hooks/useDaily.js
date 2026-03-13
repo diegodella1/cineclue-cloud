@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { check } from '../lib/normalize'
 import { POINTS_BY_CLUE } from '../lib/constants'
+import { track } from '../lib/analytics'
 
 export function useDaily() {
   const [movie, setMovie] = useState(null)
@@ -86,6 +87,7 @@ export function useDaily() {
       return
     }
     setGameResult(data)
+    track('game_completed', { mode: 'daily', score: r.points_earned, guessed: r.guessed })
     await fetchProfile(user.id)
     const { data: statsData } = await supabase.rpc('cc_get_daily_stats')
     setStats(statsData)

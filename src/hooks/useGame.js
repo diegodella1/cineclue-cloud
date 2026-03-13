@@ -3,6 +3,7 @@ import { useGameStore } from '../stores/gameStore'
 import { useAuthStore } from '../stores/authStore'
 import { check } from '../lib/normalize'
 import { POINTS_BY_CLUE } from '../lib/constants'
+import { track } from '../lib/analytics'
 
 export function useGame() {
   const [showResult, setShowResult] = useState(false)
@@ -59,10 +60,11 @@ export function useGame() {
   const handleFinish = useCallback(async () => {
     if (user) {
       const result = await completeGame(user.id)
+      track('game_completed', { mode: 'solo', score: totalScore, rounds: movies.length })
       await fetchProfile(user.id)
       return result
     }
-  }, [user, completeGame, fetchProfile])
+  }, [user, completeGame, fetchProfile, totalScore, movies.length])
 
   return {
     movies, currentRound, currentClue, currentMovie,

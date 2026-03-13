@@ -22,6 +22,10 @@ const DuelSetup = lazy(() => import('./pages/DuelSetup'))
 const DuelGame = lazy(() => import('./pages/DuelGame'))
 const Landing = lazy(() => import('./pages/Landing'))
 const About = lazy(() => import('./pages/About'))
+const PartyLanding = lazy(() => import('./pages/PartyLanding'))
+const PartyJoin = lazy(() => import('./pages/PartyJoin'))
+const PartyHost = lazy(() => import('./pages/PartyHost'))
+const PartyPlayer = lazy(() => import('./pages/PartyPlayer'))
 
 function RequireAuth({ children }) {
   const user = useAuthStore(s => s.user)
@@ -43,6 +47,11 @@ function RequireAuth({ children }) {
     {children}
     <BottomNav />
   </>
+}
+
+function CatchAll() {
+  const user = useAuthStore(s => s.user)
+  return <Navigate to={user ? '/home' : '/'} replace />
 }
 
 export default function App() {
@@ -79,9 +88,13 @@ export default function App() {
         <Route path="/duel/play" element={<Suspense fallback={<Loading />}><RequireAuth><DuelGame /></RequireAuth></Suspense>} />
         <Route path="/u/:username" element={<Suspense fallback={<Loading />}><PublicProfile /></Suspense>} />
         <Route path="/admin" element={<Suspense fallback={<Loading />}><RequireAuth><Admin /></RequireAuth></Suspense>} />
+        <Route path="/party" element={<Suspense fallback={<Loading />}><PartyLanding /></Suspense>} />
+        <Route path="/party/join" element={<Suspense fallback={<Loading />}><PartyJoin /></Suspense>} />
+        <Route path="/party/room/:code/host" element={<Suspense fallback={<Loading />}><PartyHost /></Suspense>} />
+        <Route path="/party/room/:code/player" element={<Suspense fallback={<Loading />}><PartyPlayer /></Suspense>} />
         <Route path="/about" element={<Suspense fallback={<Loading />}><About /></Suspense>} />
         <Route path="/" element={<Suspense fallback={<Loading />}><Landing /></Suspense>} />
-        <Route path="*" element={<Navigate to="/home" replace />} />
+        <Route path="*" element={<CatchAll />} />
       </Routes>
     </>
   )

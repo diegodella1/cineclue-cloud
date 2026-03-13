@@ -15,7 +15,7 @@ function stripArticle(str) {
 
 export function check(input, movie) {
   const inp = normalize(input)
-  if (inp.length < 2) return false
+  if (inp.length < 3) return false
 
   const title = normalize(movie.title)
   const alts = (movie.alt || []).map(normalize)
@@ -23,5 +23,7 @@ export function check(input, movie) {
   const targets = [title, stripArticle(title), ...alts, ...alts.map(stripArticle)]
   const inputs = [inp, stripArticle(inp)]
 
-  return inputs.some(i => targets.includes(i))
+  return inputs.some(i =>
+    targets.some(t => i.length >= 3 && t.length >= 3 && (i.includes(t) || t.includes(i)))
+  )
 }

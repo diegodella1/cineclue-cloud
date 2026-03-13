@@ -351,6 +351,85 @@ export async function generateProfileImage({ displayName, username, elo, rank, l
 }
 
 // =============================================================================
+// PARTY RESULT
+// =============================================================================
+export async function generatePartyImage({ rankings, playerCount, numRounds, myName, myPosition, myScore }) {
+  await ensureFonts()
+  const c = createCanvas()
+  const ctx = c.getContext('2d')
+  drawBackground(ctx)
+  drawLogo(ctx)
+
+  // Party label
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.font = '30px "DM Mono"'
+  ctx.textAlign = 'center'
+  ctx.fillText(`Party Mode · ${numRounds} pelis · ${playerCount} jugadores`, W / 2, 190)
+
+  // My result headline
+  if (myPosition && myPosition <= 3) {
+    const medals = ['🥇', '🥈', '🥉']
+    ctx.font = 'bold 80px "DM Mono"'
+    ctx.fillStyle = '#d4af37'
+    ctx.fillText(`${medals[myPosition - 1]} #${myPosition}`, W / 2, 340)
+  } else if (myPosition) {
+    ctx.font = 'bold 80px "DM Mono"'
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(`#${myPosition}`, W / 2, 340)
+  }
+
+  // My score
+  if (myScore !== undefined) {
+    ctx.fillStyle = '#d4af37'
+    ctx.font = 'bold 100px "DM Mono"'
+    ctx.fillText(`${myScore} pts`, W / 2, 470)
+  }
+
+  // My name
+  if (myName) {
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'
+    ctx.font = '32px "DM Mono"'
+    const label = myName.length > 20 ? myName.slice(0, 18) + '..' : myName
+    ctx.fillText(label, W / 2, 530)
+  }
+
+  // Top rankings (up to 8)
+  const top = (rankings || []).slice(0, 8)
+  if (top.length > 0) {
+    let y = 640
+    ctx.textAlign = 'left'
+    top.forEach((r, i) => {
+      const posIcon = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`
+      const isBold = i < 3
+
+      // Position
+      ctx.font = `${isBold ? 'bold ' : ''}34px "DM Mono"`
+      ctx.fillStyle = i < 3 ? '#d4af37' : 'rgba(255,255,255,0.5)'
+      ctx.fillText(posIcon, 100, y)
+
+      // Avatar + Name
+      ctx.fillStyle = isBold ? '#ffffff' : 'rgba(255,255,255,0.6)'
+      ctx.font = `${isBold ? 'bold ' : ''}32px "DM Mono"`
+      const avatar = r.avatar || '🎬'
+      const name = r.display_name && r.display_name.length > 18 ? r.display_name.slice(0, 16) + '..' : (r.display_name || '')
+      ctx.fillText(`${avatar} ${name}`, 180, y)
+
+      // Score
+      ctx.textAlign = 'right'
+      ctx.fillStyle = '#d4af37'
+      ctx.font = `bold 34px "DM Mono"`
+      ctx.fillText(`${r.total_score}`, W - 100, y)
+      ctx.textAlign = 'left'
+
+      y += 65
+    })
+  }
+
+  drawCTA(ctx)
+  return c.toDataURL('image/png')
+}
+
+// =============================================================================
 // SHARE DISPATCHER
 // =============================================================================
 export async function shareImage(dataUrl, text) {
@@ -409,6 +488,11 @@ export function duelShareText({ myName, myScore, rivalName, rivalScore, iWon, is
   if (isDraw) return `Empate ${myScore}-${rivalScore} con @${rivalName} en CineClue! 🎬 cineclue.game`
   if (iWon) return `Le gane a @${rivalName} ${myScore}-${rivalScore} en CineClue! 🎬 cineclue.game`
   return `@${rivalName} me gano ${rivalScore}-${myScore} en CineClue 😅 cineclue.game`
+}
+
+export function partyShareText({ myName, myPosition, myScore, playerCount, numRounds }) {
+  const pos = myPosition ? `#${myPosition}` : ''
+  return `${pos} con ${myScore} pts en CineClue Party! (${playerCount} jugadores, ${numRounds} pelis) 🎬 cineclue.game`
 }
 
 export function profileShareText({ displayName, username, elo, rank, level, streakCurrent }) {

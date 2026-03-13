@@ -32,3 +32,13 @@ export const CLUE_LABELS = [
   'Frase icónica',
   'Sinopsis',
 ]
+
+// Party Mode constants
+export const PARTY_CLUE_TIMERS = [30, 25, 20, 15, 10] // seconds per clue
+export const PARTY_BASE_POINTS = [500, 400, 300, 200, 100] // base points per clue index
+export const PARTY_MAX_SPEED_BONUS = 500
+export const PARTY_AVATAR_EMOJIS = [
+  '🎬', '🍿', '🎥', '🎞', '📽', '🎭', '🌟', '⭐',
+  '🏆', '🎪', '🦊', '🐱', '🐶', '🦁', '🐸', '🦉',
+  '🤖', '👽', '🧛', '🧟', '🦸', '🧙', '🥷', '🤠',
+]

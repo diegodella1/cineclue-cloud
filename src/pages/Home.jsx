@@ -68,6 +68,29 @@ export default function Home() {
           </button>
         </div>
 
+        {/* Party Mode */}
+        <div className="bg-dark-card border border-dark-border rounded-xl p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🎉</span>
+            <h2 className="font-serif text-xl text-gold">Party Mode</h2>
+          </div>
+          <p className="text-text-secondary text-sm">Jugá con amigos en la tele. Cada uno desde su celular.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => navigate('/party')}
+              className="bg-gold text-dark font-bold py-2.5 rounded-lg text-sm hover:bg-gold-light transition-colors"
+            >
+              Crear sala
+            </button>
+            <button
+              onClick={() => navigate('/party/join')}
+              className="border border-gold text-gold font-bold py-2.5 rounded-lg text-sm hover:bg-gold hover:text-dark transition-colors"
+            >
+              Unirme
+            </button>
+          </div>
+        </div>
+
         {/* Solo + Duel row */}
         <div className="grid grid-cols-2 gap-3">
           {/* Solo */}

@@ -34,6 +34,29 @@ export default function Landing() {
           ))}
         </div>
 
+        {/* Party Mode — no requiere cuenta */}
+        <div className="w-full max-w-sm bg-dark-card border border-dark-border rounded-xl p-4 mb-6 text-left">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">🎉</span>
+            <h3 className="font-bold text-gold text-sm">Party Mode</h3>
+          </div>
+          <p className="text-text-secondary text-xs mb-3">Jugá con amigos en la tele. Sin necesidad de cuenta.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => navigate('/party')}
+              className="bg-gold text-dark font-bold py-2 rounded-lg text-xs hover:bg-gold-light transition-colors"
+            >
+              Crear sala
+            </button>
+            <button
+              onClick={() => navigate('/party/join')}
+              className="border border-gold text-gold font-bold py-2 rounded-lg text-xs hover:bg-gold hover:text-dark transition-colors"
+            >
+              Unirme
+            </button>
+          </div>
+        </div>
+
         {/* CTA */}
         <button
           onClick={() => navigate('/auth')}

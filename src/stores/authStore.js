@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
+import { track } from '../lib/analytics'
 
 export const useAuthStore = create((set, get) => ({
   user: null,
@@ -44,6 +45,7 @@ export const useAuthStore = create((set, get) => ({
 
       if (session?.user) {
         set({ session, user: session.user, loading: false })
+        if (event === 'SIGNED_IN') track('user_login', { provider: session.user.app_metadata?.provider || 'email' })
         loadProfile(session)
       } else {
         set({ session: null, user: null, profile: null, profileLoaded: false, pendingDuels: 0, loading: false })

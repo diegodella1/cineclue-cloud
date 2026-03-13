@@ -15,6 +15,7 @@ const TABS = [
   { id: 'daily', label: 'Peli del Día' },
   { id: 'missions', label: 'Misiones' },
   { id: 'levels', label: 'Niveles' },
+  { id: 'party', label: 'Party' },
 ]
 
 export default function Admin() {
@@ -76,6 +77,7 @@ export default function Admin() {
         {tab === 'daily' && <DailyTab />}
         {tab === 'missions' && <MissionsTab />}
         {tab === 'levels' && <LevelsTab />}
+        {tab === 'party' && <PartyTab />}
       </div>
     </AppShell>
   )
@@ -721,6 +723,86 @@ function LevelForm({ level, onSave, onCancel }) {
         </button>
       </div>
     </form>
+  )
+}
+
+/* ============================================================ */
+/* PARTY TAB                                                     */
+/* ============================================================ */
+function PartyTab() {
+  const [metrics, setMetrics] = useState(null)
+  const [rooms, setRooms] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      supabase.rpc('cc_admin_party_metrics', { p_days: 30 }),
+      supabase.from('cc_party_rooms').select('id, code, status, num_rounds, created_at, finished_at').order('created_at', { ascending: false }).limit(30),
+    ]).then(async ([metricsRes, roomsRes]) => {
+      const rawMetrics = metricsRes.data || []
+      setMetrics(rawMetrics)
+
+      // Enrich rooms with player count
+      const roomData = roomsRes.data || []
+      const enriched = await Promise.all(roomData.map(async (r) => {
+        const { count } = await supabase.from('cc_party_players').select('*', { count: 'exact', head: true }).eq('room_id', r.id)
+        return { ...r, player_count: count || 0 }
+      }))
+      setRooms(enriched)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) return <Loading />
+
+  // Aggregate today's metrics
+  const today = new Date().toISOString().split('T')[0]
+  const todayMetric = Array.isArray(metrics) ? metrics.find(m => m.day === today) : null
+  const totalRooms = Array.isArray(metrics) ? metrics.reduce((s, m) => s + (m.rooms_created || 0), 0) : 0
+  const totalCompleted = Array.isArray(metrics) ? metrics.reduce((s, m) => s + (m.rooms_completed || 0), 0) : 0
+  const completionRate = totalRooms > 0 ? Math.round((totalCompleted / totalRooms) * 100) : 0
+  const avgPlayers = Array.isArray(metrics) && metrics.length > 0
+    ? (metrics.reduce((s, m) => s + parseFloat(m.avg_players || 0), 0) / metrics.length).toFixed(1)
+    : '0'
+
+  const statusColors = { waiting: 'text-gold', playing: 'text-success', finished: 'text-text-secondary', expired: 'text-error' }
+
+  return (
+    <div className="space-y-5 animate-fadeIn">
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-2">
+        <KPI label="Salas hoy" value={todayMetric?.rooms_created || 0} accent />
+        <KPI label="Tasa completado" value={`${completionRate}%`} />
+        <KPI label="Jugadores prom." value={avgPlayers} />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <KPI label="Salas total (30d)" value={totalRooms} />
+        <KPI label="Completadas" value={totalCompleted} />
+        <KPI label="Hoy completadas" value={todayMetric?.rooms_completed || 0} accent />
+      </div>
+
+      {/* Recent rooms */}
+      <h3 className="text-sm font-bold">Salas recientes</h3>
+      <div className="bg-dark-card rounded-xl border border-dark-border overflow-hidden">
+        <div className="grid grid-cols-[60px_70px_50px_50px_1fr] gap-1 px-3 py-2 text-[10px] text-text-secondary border-b border-dark-border font-mono">
+          <span>Código</span>
+          <span>Estado</span>
+          <span className="text-right">Rondas</span>
+          <span className="text-right">Players</span>
+          <span className="text-right">Fecha</span>
+        </div>
+        {rooms.map((r, i) => (
+          <div key={r.id} className={`grid grid-cols-[60px_70px_50px_50px_1fr] gap-1 px-3 py-2 text-xs ${i > 0 ? 'border-t border-dark-border/50' : ''}`}>
+            <span className="font-mono text-gold">{r.code}</span>
+            <span className={`font-mono ${statusColors[r.status] || 'text-white'}`}>{r.status}</span>
+            <span className="text-right font-mono text-text-secondary">{r.num_rounds}</span>
+            <span className="text-right font-mono text-text-secondary">{r.player_count}</span>
+            <span className="text-right text-text-secondary">{timeAgo(r.created_at)}</span>
+          </div>
+        ))}
+        {rooms.length === 0 && <p className="text-text-secondary text-xs text-center py-6">Sin salas</p>}
+      </div>
+    </div>
   )
 }
 
