@@ -21,6 +21,7 @@ export function usePartyHost() {
   const autoAdvanceRef = useRef(null)
   const autoAdvanceCountdownRef = useRef(0)
   const roundEndTriggeredRef = useRef(false)
+  const nextRoundInProgressRef = useRef(false)
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -116,6 +117,8 @@ export function usePartyHost() {
 
   // Host advances to next round
   const handleNextRound = useCallback(async () => {
+    if (nextRoundInProgressRef.current) return
+    nextRoundInProgressRef.current = true
     clearAutoAdvance()
     const result = await nextRound()
     if (result?.action === 'next_round') {
@@ -138,10 +141,10 @@ export function usePartyHost() {
     handleNextRound()
   }, [clearAutoAdvance, handleNextRound])
 
-  // All players answered → skip to round end
+  // Reset flags on new round
   useEffect(() => {
-    // Reset flag on new round
     roundEndTriggeredRef.current = false
+    nextRoundInProgressRef.current = false
   }, [room?.current_round])
 
   useEffect(() => {
@@ -181,5 +184,6 @@ export function usePartyHost() {
     clearAutoAdvance,
     remainingRef,
     autoAdvanceCountdownRef,
+    nextRoundInProgressRef,
   }
 }

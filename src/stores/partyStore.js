@@ -103,15 +103,17 @@ export const usePartyStore = create((set, get) => ({
     return data
   },
 
-  submitAnswer: async (answer, responseTimeMs) => {
+  submitAnswer: async (answer, responseTimeMs, clueIndex = null) => {
     const { room, playerId } = get()
     if (!room || !playerId) return
-    const { data, error } = await supabase.rpc('cc_party_submit_answer', {
+    const params = {
       p_room_id: room.id,
       p_player_id: playerId,
       p_answer: answer,
       p_response_time_ms: responseTimeMs,
-    })
+    }
+    if (clueIndex != null) params.p_clue_index = clueIndex
+    const { data, error } = await supabase.rpc('cc_party_submit_answer', params)
     if (error) throw error
     set({ lastAnswerResult: data })
     if (data.correct) set({ answeredThisRound: true })

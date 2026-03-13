@@ -34,12 +34,14 @@ export default function PartyHost() {
     skipAutoAdvance,
     startClueTimer,
     autoAdvanceCountdownRef,
+    nextRoundInProgressRef,
   } = usePartyHost()
 
   const [showCountdown, setShowCountdown] = useState(false)
   const [showRoundEnd, setShowRoundEnd] = useState(false)
   const [copied, setCopied] = useState(false)
   const [autoAdvanceSecs, setAutoAdvanceSecs] = useState(0)
+  const [continuing, setContinuing] = useState(false)
 
   const joinUrl = `${window.location.origin}/party/join?code=${code}`
 
@@ -80,24 +82,27 @@ export default function PartyHost() {
   }, [handleStartGame])
 
   const onTimerExpire = useCallback(async () => {
-    if (currentClue < 4) {
-      // Advance clue (handled by host hook)
-      await handleTimerExpiry()
-    } else {
-      // Round end
-      setShowRoundEnd(true)
-    }
-  }, [currentClue, handleTimerExpiry])
+    // Advance clue or trigger round end (both handled by host hook)
+    await handleTimerExpiry()
+  }, [handleTimerExpiry])
 
   const handleContinue = useCallback(async () => {
+    if (continuing) return
+    setContinuing(true)
     setShowRoundEnd(false)
     await handleNextRound()
-  }, [handleNextRound])
+    setContinuing(false)
+  }, [handleNextRound, continuing])
 
   const handleExit = useCallback(() => {
     reset()
     navigate('/party')
   }, [reset, navigate])
+
+  // Reset round end when advancing to next round
+  useEffect(() => {
+    setShowRoundEnd(false)
+  }, [room?.current_round])
 
   // Show round end when all clues exhausted
   useEffect(() => {
@@ -309,7 +314,8 @@ export default function PartyHost() {
           ) : (
             <button
               onClick={handleContinue}
-              className="bg-gold text-dark font-bold text-2xl px-20 py-6 rounded-2xl hover:bg-gold-light transition-colors animate-pulse-border border-2 border-gold"
+              disabled={continuing}
+              className="bg-gold text-dark font-bold text-2xl px-20 py-6 rounded-2xl hover:bg-gold-light transition-colors animate-pulse-border border-2 border-gold disabled:opacity-40"
             >
               {currentRound + 1 >= totalRounds ? 'Ver resultados' : 'Siguiente película'}
             </button>

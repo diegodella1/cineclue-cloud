@@ -13,7 +13,7 @@ export function usePartyPlayer() {
   const [submitting, setSubmitting] = useState(false)
   const [shaking, setShaking] = useState(false)
 
-  const handleSubmitAnswer = useCallback(async (answer) => {
+  const handleSubmitAnswer = useCallback(async (answer, clueIndex = null) => {
     if (!room || !playerId || answeredThisRound || submitting) return null
 
     // Calculate response time from when clue was revealed
@@ -23,7 +23,7 @@ export function usePartyPlayer() {
 
     setSubmitting(true)
     try {
-      const result = await submitAnswer(answer, responseTimeMs)
+      const result = await submitAnswer(answer, responseTimeMs, clueIndex)
       if (result?.correct) {
         broadcast('player_answered', {
           player_id: playerId,

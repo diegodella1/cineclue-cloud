@@ -35,6 +35,7 @@ export default function PartyPlayer() {
 
   const [input, setInput] = useState('')
   const [reconnecting, setReconnecting] = useState(false)
+  const [localClueIndex, setLocalClueIndex] = useState(0)
 
   // Try reconnect on mount if no room
   useEffect(() => {
@@ -47,10 +48,17 @@ export default function PartyPlayer() {
     }
   }, [])
 
-  // Clear input on new round
+  // Clear input and reset local clue on new round
   useEffect(() => {
     setInput('')
+    setLocalClueIndex(0)
   }, [room?.current_round])
+
+  // Sync localClueIndex when server clue advances past it
+  useEffect(() => {
+    const serverClue = room?.current_clue || 0
+    setLocalClueIndex(prev => Math.max(prev, serverClue))
+  }, [room?.current_clue])
 
   // SFX: power-up when entering double round
   useEffect(() => {
@@ -62,11 +70,15 @@ export default function PartyPlayer() {
     if (room?.status === 'finished') sfx.play('podium')
   }, [room?.status])
 
+  const handleSkipClue = useCallback(() => {
+    setLocalClueIndex(prev => Math.min(prev + 1, 4))
+  }, [])
+
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
     if (!input.trim()) return
     sfx.warmup()
-    const result = await handleSubmitAnswer(input.trim())
+    const result = await handleSubmitAnswer(input.trim(), localClueIndex)
     if (result?.correct) {
       setInput('')
       // SFX: correct + first blood + streak
@@ -103,6 +115,16 @@ export default function PartyPlayer() {
   const currentRound = room.current_round || 0
   const currentClue = room.current_clue || 0
   const totalRounds = room.num_rounds || 5
+
+  // Build local clues: server clues + any locally skipped-ahead clues
+  const localClues = (() => {
+    if (!room?.movies || status !== 'playing') return currentClues
+    const movie = room.movies[currentRound]
+    if (!movie?.clues) return currentClues
+    const clues = []
+    for (let i = 0; i <= localClueIndex; i++) clues.push(movie.clues[i])
+    return clues
+  })()
 
   // ==================== WAITING ====================
   if (status === 'waiting') {
@@ -153,7 +175,7 @@ export default function PartyPlayer() {
               <span className="text-xs font-bold text-gold animate-pulse">x2</span>
             )}
             <span className="text-xs text-text-secondary">
-              {CLUE_LABELS[currentClue]}
+              {CLUE_LABELS[localClueIndex]}
             </span>
             {myPosition > 0 && (
               <span className="text-xs font-mono text-gold">
@@ -169,22 +191,31 @@ export default function PartyPlayer() {
 
         {/* Current clue */}
         <div className="flex-1 px-4 py-3 overflow-y-auto">
-          {currentClues.map((clue, i) => (
+          {localClues.map((clue, i) => (
             <div
               key={i}
               className={`mb-2 p-3 rounded-xl border animate-fadeIn ${
-                i === currentClue
+                i === localClueIndex
                   ? 'border-gold/30 bg-dark-card'
                   : 'border-dark-border/30 bg-dark-card/50 opacity-60'
               }`}
             >
-              {i === currentClue ? (
+              {i === localClueIndex ? (
                 <p className={`${i === 0 ? 'text-3xl text-center' : 'text-sm'} text-white`}>{clue}</p>
               ) : (
                 <p className={`${i === 0 ? 'text-xl text-center' : 'text-xs'} text-white opacity-50`}>{clue}</p>
               )}
             </div>
           ))}
+          {/* Skip clue button */}
+          {!answeredThisRound && localClueIndex < 4 && (
+            <button
+              onClick={handleSkipClue}
+              className="w-full mt-2 text-text-secondary text-xs py-2 border border-dark-border/30 rounded-xl hover:border-gold/30 hover:text-gold transition-colors"
+            >
+              Siguiente pista →
+            </button>
+          )}
         </div>
 
         {/* Answer input */}
