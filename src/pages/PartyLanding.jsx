@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePartyStore } from '../stores/partyStore'
 import { useAuthStore } from '../stores/authStore'
+import { PARTY_CATEGORIES } from '../lib/constants'
 import AppShell from '../components/layout/AppShell'
 
 export default function PartyLanding() {
@@ -11,12 +12,13 @@ export default function PartyLanding() {
   const [numRounds, setNumRounds] = useState(5)
   const [maxPlayers, setMaxPlayers] = useState(20)
   const [autoAdvance, setAutoAdvance] = useState(false)
+  const [category, setCategory] = useState(null)
   const [creating, setCreating] = useState(false)
 
   const handleCreate = async () => {
     setCreating(true)
     try {
-      const result = await createRoom(numRounds, user?.id || null, autoAdvance, maxPlayers)
+      const result = await createRoom(numRounds, user?.id || null, autoAdvance, maxPlayers, category)
       navigate(`/party/room/${result.code}/host`)
     } catch (e) {
       alert(e.message || 'Error al crear sala')
@@ -69,6 +71,24 @@ export default function PartyLanding() {
                   }`}
                 >
                   {n}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-text-secondary mb-2">Categoría</p>
+            <div className="flex flex-wrap gap-2">
+              {PARTY_CATEGORIES.map(cat => (
+                <button
+                  key={cat.label}
+                  onClick={() => setCategory(cat.value)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                    category === cat.value
+                      ? 'bg-gold text-dark'
+                      : 'bg-dark border border-dark-border text-text-secondary hover:text-white'
+                  }`}
+                >
+                  {cat.label}
                 </button>
               ))}
             </div>

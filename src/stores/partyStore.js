@@ -2,9 +2,12 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { track } from '../lib/analytics'
 
+// Module-level set to track broadcast retry intervals for cleanup
+const broadcastRetryIntervals = new Set()
+
 export const usePartyStore = create((set, get) => ({
   // Room state
-  room: null,       // { id, code, status, num_rounds, current_round, current_clue, movies, clue_started_at }
+  room: null,       // { id, code, status, num_rounds, current_round, current_clue, movies, clue_started_at, category }
   players: [],
   rankings: [],
   playerId: null,
@@ -21,26 +24,41 @@ export const usePartyStore = create((set, get) => ({
   previousRankings: [],   // rankings snapshot from before last fetchRankings
   playerStreaks: {},       // player_id → consecutive correct rounds count
 
+  // Skip votes
+  skipVotes: [],  // player IDs who voted to skip current movie
+
+  // Countdown
+  showCountdown: false,
+
+  // Rematch
+  rematchCode: null,
+
+  // Progression
+  progressionResult: null,
+
   // Realtime
   channel: null,
 
   // Actions
-  createRoom: async (numRounds = 5, hostUserId = null, autoAdvance = false, maxPlayers = 20) => {
+  createRoom: async (numRounds = 5, hostUserId = null, autoAdvance = false, maxPlayers = 20, category = null) => {
     const { data, error } = await supabase.rpc('cc_party_create_room', {
       p_host_user_id: hostUserId,
       p_num_rounds: numRounds,
       p_auto_advance: autoAdvance,
       p_max_players: maxPlayers,
+      p_category: category,
     })
     if (error) throw error
     set({
-      room: { id: data.room_id, code: data.code, status: 'waiting', num_rounds: numRounds, auto_advance: autoAdvance, current_round: 0, current_clue: 0 },
+      room: { id: data.room_id, code: data.code, status: 'waiting', num_rounds: numRounds, auto_advance: autoAdvance, current_round: 0, current_clue: 0, category },
       isHost: true,
       players: [],
       rankings: [],
+      rematchCode: null,
+      progressionResult: null,
     })
     get().subscribeToChannel(data.code)
-    track('party_created', { num_rounds: numRounds, auto_advance: autoAdvance, max_players: maxPlayers, code: data.code })
+    track('party_created', { num_rounds: numRounds, auto_advance: autoAdvance, max_players: maxPlayers, category, code: data.code })
     return data
   },
 
@@ -53,12 +71,18 @@ export const usePartyStore = create((set, get) => ({
     if (error) throw error
     const playerId = data.player_id
     set({
-      room: { id: data.room_id, code: data.code, status: 'waiting', num_rounds: data.num_rounds, auto_advance: data.auto_advance || false, current_round: 0, current_clue: 0 },
+      room: { id: data.room_id, code: data.code, status: 'waiting', num_rounds: data.num_rounds, auto_advance: data.auto_advance || false, current_round: 0, current_clue: 0, category: data.category || null },
       playerId,
       isHost: false,
+      rematchCode: null,
+      progressionResult: null,
     })
-    // Persist for reconnect
-    try { sessionStorage.setItem('party_player_id', playerId) } catch {}
+    // Persist for reconnect + rematch
+    try {
+      sessionStorage.setItem('party_player_id', playerId)
+      sessionStorage.setItem('party_display_name', displayName)
+      sessionStorage.setItem('party_avatar', avatar)
+    } catch {}
     get().subscribeToChannel(data.code)
     // Broadcast waits for channel ready automatically
     get().broadcast('player_joined', { player_id: playerId, display_name: displayName, avatar })
@@ -133,6 +157,7 @@ export const usePartyStore = create((set, get) => ({
         answeredThisRound: false,
         lastAnswerResult: null,
         answeredPlayerIds: [],
+        skipVotes: [],
       })
     } else if (data.action === 'game_finished') {
       set({ room: { ...get().room, status: 'finished' } })
@@ -160,6 +185,59 @@ export const usePartyStore = create((set, get) => ({
     set({ players: data || [] })
   },
 
+  // Player votes to skip current movie
+  voteSkip: () => {
+    const { playerId } = get()
+    if (!playerId) return
+    get().broadcast('vote_skip', { player_id: playerId })
+  },
+
+  // Toggle auto-advance mid-game (host only, local state)
+  toggleAutoAdvance: () => {
+    const room = get().room
+    if (!room) return
+    set({ room: { ...room, auto_advance: !room.auto_advance } })
+  },
+
+  // Record progression for logged-in players
+  recordProgression: async () => {
+    const { room, playerId } = get()
+    if (!room || !playerId) return
+    // Get auth user — only works for logged-in players
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    try {
+      const { data, error } = await supabase.rpc('cc_party_complete_for_player', {
+        p_room_id: room.id,
+        p_player_id: playerId,
+        p_user_id: user.id,
+      })
+      if (error) { console.warn('[party] progression error:', error.message); return }
+      if (data && !data.already_recorded) {
+        set({ progressionResult: data })
+      }
+    } catch (e) {
+      console.warn('[party] progression error:', e)
+    }
+  },
+
+  // Rematch: create new room with same settings, broadcast code to old room
+  rematch: async () => {
+    const { room, isHost } = get()
+    if (!room || !isHost) return null
+    const { data, error } = await supabase.rpc('cc_party_create_room', {
+      p_host_user_id: room.host_user_id || null,
+      p_num_rounds: room.num_rounds,
+      p_auto_advance: room.auto_advance || false,
+      p_max_players: room.max_players || 20,
+      p_category: room.category || null,
+    })
+    if (error) throw error
+    // Broadcast rematch code to old room so players can follow
+    get().broadcast('rematch', { code: data.code })
+    return data
+  },
+
   // Realtime channel
   channelReady: false,
 
@@ -176,7 +254,14 @@ export const usePartyStore = create((set, get) => ({
       .on('broadcast', { event: 'player_joined' }, ({ payload }) => {
         get().fetchPlayers()
       })
+      .on('broadcast', { event: 'countdown' }, () => {
+        if (get().isHost) return
+        set({ showCountdown: true })
+      })
       .on('broadcast', { event: 'game_started' }, ({ payload }) => {
+        // Skip if host — host already set state in startGame()
+        if (get().isHost) return
+        set({ showCountdown: false })
         const movies = payload.movies
         const numRounds = movies.length
         set({
@@ -190,6 +275,8 @@ export const usePartyStore = create((set, get) => ({
         })
       })
       .on('broadcast', { event: 'clue_revealed' }, ({ payload }) => {
+        // Skip if host — host already set state in advanceClue()
+        if (get().isHost) return
         const { current_clue, current_round } = payload
         const room = get().room
         if (!room?.movies) return
@@ -219,6 +306,14 @@ export const usePartyStore = create((set, get) => ({
           setTimeout(() => set({ lastFirstBlood: null }), 3000)
         }
       })
+      .on('broadcast', { event: 'vote_skip' }, ({ payload }) => {
+        if (payload?.player_id) {
+          const prev = get().skipVotes
+          if (!prev.includes(payload.player_id)) {
+            set({ skipVotes: [...prev, payload.player_id] })
+          }
+        }
+      })
       .on('broadcast', { event: 'ranking_update' }, ({ payload }) => {
         if (payload.rankings) set({ rankings: payload.rankings })
       })
@@ -246,6 +341,8 @@ export const usePartyStore = create((set, get) => ({
         get().fetchRankings()
       })
       .on('broadcast', { event: 'next_round' }, ({ payload }) => {
+        // Skip if host — host already set state in nextRound()
+        if (get().isHost) return
         const room = get().room
         if (!room?.movies) return
         const movie = room.movies[payload.current_round]
@@ -259,11 +356,19 @@ export const usePartyStore = create((set, get) => ({
           lastFirstBlood: null,
           isDoubleRound: payload.current_round >= numRounds - 2,
           previousRankings: [],
+          skipVotes: [],
         })
       })
       .on('broadcast', { event: 'game_finished' }, () => {
         set({ room: { ...get().room, status: 'finished' } })
         get().fetchRankings()
+        // Fire-and-forget progression recording for logged-in players
+        get().recordProgression()
+      })
+      .on('broadcast', { event: 'rematch' }, ({ payload }) => {
+        if (payload?.code) {
+          set({ rematchCode: payload.code })
+        }
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
         const hostLeft = leftPresences.some(p => p.role === 'host')
@@ -301,13 +406,16 @@ export const usePartyStore = create((set, get) => ({
         attempts++
         if (get().channelReady) {
           clearInterval(interval)
+          broadcastRetryIntervals.delete(interval)
           ch.send({ type: 'broadcast', event, payload })
         } else if (attempts > 50) {
           clearInterval(interval)
+          broadcastRetryIntervals.delete(interval)
           console.warn('[party] broadcast timeout, sending anyway')
           ch.send({ type: 'broadcast', event, payload })
         }
       }, 100)
+      broadcastRetryIntervals.add(interval)
     }
   },
 
@@ -342,12 +450,26 @@ export const usePartyStore = create((set, get) => ({
       for (let i = 0; i <= room.current_clue; i++) currentClues.push(movie.clues[i])
     }
 
+    // Check if player already answered this round
+    let answeredThisRound = false
+    if (room.status === 'playing') {
+      const { data: answers } = await supabase
+        .from('cc_party_answers')
+        .select('correct')
+        .eq('room_id', room.id)
+        .eq('player_id', savedPlayerId)
+        .eq('round_num', room.current_round)
+        .eq('correct', true)
+        .limit(1)
+      answeredThisRound = answers?.length > 0
+    }
+
     set({
       room: { ...room, clue_started_at: room.clue_started_at ? new Date(room.clue_started_at).getTime() : Date.now() },
       playerId: savedPlayerId,
       isHost: false,
       currentClues,
-      answeredThisRound: false,
+      answeredThisRound,
     })
 
     get().subscribeToChannel(code.toUpperCase())
@@ -361,11 +483,16 @@ export const usePartyStore = create((set, get) => ({
     const ch = get().channel
     if (ch) supabase.removeChannel(ch)
     try { sessionStorage.removeItem('party_player_id') } catch {}
+    // Clear any pending broadcast retry intervals
+    for (const interval of broadcastRetryIntervals) {
+      clearInterval(interval)
+    }
+    broadcastRetryIntervals.clear()
     set({
       room: null, players: [], rankings: [], playerId: null, isHost: false, hostDisconnected: false,
       currentClues: [], answeredThisRound: false, lastAnswerResult: null, answeredPlayerIds: [],
       lastFirstBlood: null, isDoubleRound: false, previousRankings: [], playerStreaks: {},
-      channel: null, channelReady: false,
+      channel: null, channelReady: false, rematchCode: null, progressionResult: null, skipVotes: [], showCountdown: false,
     })
   },
 }))

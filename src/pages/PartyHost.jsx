@@ -22,15 +22,17 @@ export default function PartyHost() {
   const rankings = usePartyStore(s => s.rankings)
   const currentClues = usePartyStore(s => s.currentClues)
   const reset = usePartyStore(s => s.reset)
+  const rematch = usePartyStore(s => s.rematch)
   const lastFirstBlood = usePartyStore(s => s.lastFirstBlood)
   const isDoubleRound = usePartyStore(s => s.isDoubleRound)
   const previousRankings = usePartyStore(s => s.previousRankings)
   const playerStreaks = usePartyStore(s => s.playerStreaks)
+  const toggleAutoAdvance = usePartyStore(s => s.toggleAutoAdvance)
+  const skipVotes = usePartyStore(s => s.skipVotes)
 
   const {
     handleStartGame,
     handleNextRound,
-    handleTimerExpiry,
     skipAutoAdvance,
     startClueTimer,
     autoAdvanceCountdownRef,
@@ -71,28 +73,50 @@ export default function PartyHost() {
   const totalRounds = room?.num_rounds || 5
   const currentMovie = room?.movies?.[currentRound]
 
+  const broadcast = usePartyStore(s => s.broadcast)
+
   const handleStart = useCallback(() => {
     sfx.warmup()
+    broadcast('countdown', {})
     setShowCountdown(true)
-  }, [])
+  }, [broadcast])
 
   const onCountdownComplete = useCallback(async () => {
     setShowCountdown(false)
     await handleStartGame()
   }, [handleStartGame])
 
-  const onTimerExpire = useCallback(async () => {
-    // Advance clue or trigger round end (both handled by host hook)
-    await handleTimerExpiry()
-  }, [handleTimerExpiry])
-
   const handleContinue = useCallback(async () => {
     if (continuing) return
     setContinuing(true)
     setShowRoundEnd(false)
-    await handleNextRound()
-    setContinuing(false)
+    try {
+      await handleNextRound()
+    } catch (e) {
+      console.error('[party] handleContinue error:', e)
+      setShowRoundEnd(true)
+    } finally {
+      setContinuing(false)
+    }
   }, [handleNextRound, continuing])
+
+  const [rematchLoading, setRematchLoading] = useState(false)
+
+  const handleRematch = useCallback(async () => {
+    if (rematchLoading) return
+    setRematchLoading(true)
+    try {
+      const result = await rematch()
+      if (result?.code) {
+        reset()
+        navigate(`/party/room/${result.code}/host`)
+      }
+    } catch (e) {
+      console.error('[party] rematch error:', e)
+    } finally {
+      setRematchLoading(false)
+    }
+  }, [rematch, reset, navigate, rematchLoading])
 
   const handleExit = useCallback(() => {
     reset()
@@ -232,13 +256,30 @@ export default function PartyHost() {
             <span className="text-xl text-text-secondary">
               Película {currentRound + 1} de {totalRounds}
             </span>
+            {room?.category && (
+              <span className="text-sm bg-gold/10 text-gold border border-gold/30 px-3 py-1 rounded-full">
+                {room.category}
+              </span>
+            )}
             {isDoubleRound && (
               <span className="text-xl font-bold text-gold animate-pulse">x2</span>
             )}
           </div>
-          <span className="font-mono text-lg text-text-secondary">
-            Pista {currentClue + 1}/5: {CLUE_LABELS[currentClue]}
-          </span>
+          <div className="flex items-center gap-4">
+            <span className="font-mono text-lg text-text-secondary">
+              Pista {currentClue + 1}/5: {CLUE_LABELS[currentClue]}
+            </span>
+            <button
+              onClick={toggleAutoAdvance}
+              className={`text-sm px-3 py-1 rounded-full border transition-colors ${
+                room?.auto_advance
+                  ? 'bg-gold/20 border-gold/40 text-gold'
+                  : 'bg-dark border-dark-border text-text-secondary hover:text-white hover:border-gold/30'
+              }`}
+            >
+              {room?.auto_advance ? 'Auto' : 'Manual'}
+            </button>
+          </div>
         </div>
 
         {/* First Blood banner */}
@@ -248,12 +289,18 @@ export default function PartyHost() {
           </div>
         )}
 
+        {/* Skip votes indicator */}
+        {skipVotes.length > 0 && (
+          <div className="absolute top-24 right-10 z-40 bg-dark-card/90 border border-dark-border text-text-secondary font-mono text-lg px-5 py-3 rounded-xl animate-fadeIn">
+            Saltear: {skipVotes.length}/{players.filter(p => p.connected).length}
+          </div>
+        )}
+
         {/* Timer */}
         <div className="px-10 pt-4">
           <PartyTimerBar
             duration={PARTY_CLUE_TIMERS[currentClue]}
             startedAt={room.clue_started_at}
-            onExpire={onTimerExpire}
           />
         </div>
 
@@ -336,6 +383,13 @@ export default function PartyHost() {
             <PartyRanking rankings={rankings} tv />
           </div>
           <div className="flex gap-4">
+            <button
+              onClick={handleRematch}
+              disabled={rematchLoading}
+              className="bg-gold text-dark font-bold text-xl px-12 py-4 rounded-2xl hover:bg-gold-light transition-colors disabled:opacity-40"
+            >
+              {rematchLoading ? 'Creando...' : 'Jugar de nuevo'}
+            </button>
             <ShareButton
               generateImage={() => generatePartyImage({
                 rankings,
@@ -350,13 +404,13 @@ export default function PartyHost() {
                 myName: rankings?.[0]?.display_name,
               })}
               label="Compartir resultados"
-              className="flex items-center justify-center gap-2 bg-gold text-dark font-bold text-xl px-12 py-4 rounded-2xl hover:bg-gold-light transition-colors"
+              className="flex items-center justify-center gap-2 border-2 border-gold text-gold font-bold text-xl px-12 py-4 rounded-2xl hover:bg-gold hover:text-dark transition-colors"
             />
             <button
               onClick={handleExit}
-              className="border-2 border-gold text-gold font-bold text-xl px-12 py-4 rounded-2xl hover:bg-gold hover:text-dark transition-colors"
+              className="border-2 border-dark-border text-text-secondary font-bold text-xl px-12 py-4 rounded-2xl hover:text-white hover:border-gold transition-colors"
             >
-              Volver al inicio
+              Salir
             </button>
           </div>
           <div className="flex flex-col items-center gap-2 mt-4">

@@ -37,6 +37,17 @@ export const CLUE_LABELS = [
 export const PARTY_CLUE_TIMERS = [30, 25, 20, 15, 10] // seconds per clue
 export const PARTY_BASE_POINTS = [500, 400, 300, 200, 100] // base points per clue index
 export const PARTY_MAX_SPEED_BONUS = 500
+export const PARTY_CATEGORIES = [
+  { value: null, label: 'Todas' },
+  { value: 'Drama', label: 'Drama' },
+  { value: 'Comedia', label: 'Comedia' },
+  { value: 'Acción', label: 'Acción' },
+  { value: 'Terror', label: 'Terror' },
+  { value: 'Ciencia ficción', label: 'Ciencia ficción' },
+  { value: 'Clásicos', label: 'Clásicos' },
+  { value: 'Animación', label: 'Animación' },
+]
+
 export const PARTY_AVATAR_EMOJIS = [
   '🎬', '🍿', '🎥', '🎞', '📽', '🎭', '🌟', '⭐',
   '🏆', '🎪', '🦊', '🐱', '🐶', '🦁', '🐸', '🦉',

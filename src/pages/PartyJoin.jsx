@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePartyStore } from '../stores/partyStore'
 import { PARTY_AVATAR_EMOJIS } from '../lib/constants'
@@ -9,20 +9,28 @@ export default function PartyJoin() {
   const [searchParams] = useSearchParams()
   const joinRoom = usePartyStore(s => s.joinRoom)
 
-  const [code, setCode] = useState(searchParams.get('code')?.toUpperCase() || '')
-  const [name, setName] = useState('')
-  const [avatar, setAvatar] = useState(PARTY_AVATAR_EMOJIS[Math.floor(Math.random() * PARTY_AVATAR_EMOJIS.length)])
+  const paramCode = searchParams.get('code')?.toUpperCase() || ''
+  const paramName = searchParams.get('name') || ''
+  const paramAvatar = searchParams.get('avatar') || ''
+
+  const [code, setCode] = useState(paramCode)
+  const [name, setName] = useState(paramName)
+  const [avatar, setAvatar] = useState(
+    paramAvatar && PARTY_AVATAR_EMOJIS.includes(paramAvatar)
+      ? paramAvatar
+      : PARTY_AVATAR_EMOJIS[Math.floor(Math.random() * PARTY_AVATAR_EMOJIS.length)]
+  )
   const [joining, setJoining] = useState(false)
   const [error, setError] = useState('')
+  const autoJoinAttempted = useRef(false)
 
-  const handleJoin = async (e) => {
-    e.preventDefault()
-    if (!code || code.length !== 4 || !name.trim()) return
+  const doJoin = async (joinCode, joinName, joinAvatar) => {
+    if (!joinCode || joinCode.length !== 4 || !joinName.trim()) return
     setJoining(true)
     setError('')
     try {
-      await joinRoom(code, name.trim(), avatar)
-      navigate(`/party/room/${code}/player`)
+      await joinRoom(joinCode, joinName.trim(), joinAvatar)
+      navigate(`/party/room/${joinCode}/player`)
     } catch (e) {
       const msg = e.message || ''
       if (msg.includes('Room not found')) setError('Sala no encontrada. Revisá el código.')
@@ -32,6 +40,20 @@ export default function PartyJoin() {
     } finally {
       setJoining(false)
     }
+  }
+
+  // Auto-join on mount if all params present (rematch flow)
+  useEffect(() => {
+    if (autoJoinAttempted.current) return
+    if (paramCode && paramCode.length === 4 && paramName && paramAvatar) {
+      autoJoinAttempted.current = true
+      doJoin(paramCode, paramName, paramAvatar)
+    }
+  }, [])
+
+  const handleJoin = async (e) => {
+    e.preventDefault()
+    await doJoin(code, name, avatar)
   }
 
   return (

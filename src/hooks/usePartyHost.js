@@ -9,6 +9,7 @@ export function usePartyHost() {
   const isHost = usePartyStore(s => s.isHost)
   const players = usePartyStore(s => s.players)
   const answeredPlayerIds = usePartyStore(s => s.answeredPlayerIds)
+  const skipVotes = usePartyStore(s => s.skipVotes)
   const startGame = usePartyStore(s => s.startGame)
   const advanceClue = usePartyStore(s => s.advanceClue)
   const nextRound = usePartyStore(s => s.nextRound)
@@ -22,6 +23,8 @@ export function usePartyHost() {
   const autoAdvanceCountdownRef = useRef(0)
   const roundEndTriggeredRef = useRef(false)
   const nextRoundInProgressRef = useRef(false)
+  // Ref pattern to fix stale closure in startClueTimer's interval
+  const handleTimerExpiryRef = useRef(null)
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -38,7 +41,7 @@ export function usePartyHost() {
     autoAdvanceCountdownRef.current = 0
   }, [])
 
-  // Start clue timer
+  // Start clue timer — uses ref for handleTimerExpiry to avoid stale closure
   const startClueTimer = useCallback((clueIndex) => {
     clearTimer()
     const duration = PARTY_CLUE_TIMERS[clueIndex] * 1000
@@ -51,8 +54,8 @@ export function usePartyHost() {
 
       if (remainingRef.current <= 0) {
         clearTimer()
-        // Timer expired — advance clue or end round
-        handleTimerExpiry()
+        // Use ref to get latest handleTimerExpiry (avoids stale closure)
+        handleTimerExpiryRef.current?.()
       }
     }, 100)
   }, [clearTimer])
@@ -79,6 +82,11 @@ export function usePartyHost() {
       await handleRoundEnd()
     }
   }, [room, advanceClue, broadcast, startClueTimer])
+
+  // Keep ref in sync with latest handleTimerExpiry
+  useEffect(() => {
+    handleTimerExpiryRef.current = handleTimerExpiry
+  }, [handleTimerExpiry])
 
   const handleRoundEnd = useCallback(async () => {
     if (roundEndTriggeredRef.current) return
@@ -115,24 +123,28 @@ export function usePartyHost() {
     return result
   }, [startGame, broadcast, startClueTimer])
 
-  // Host advances to next round
+  // Host advances to next round — wrapped in try/finally to always reset flag
   const handleNextRound = useCallback(async () => {
     if (nextRoundInProgressRef.current) return
     nextRoundInProgressRef.current = true
-    clearAutoAdvance()
-    const result = await nextRound()
-    if (result?.action === 'next_round') {
-      broadcast('next_round', {
-        current_round: result.current_round,
-        current_clue: 0,
-        clue_started_at: Date.now(),
-      })
-      startClueTimer(0)
-    } else if (result?.action === 'game_finished') {
-      const rankings = await fetchRankings()
-      broadcast('game_finished', { rankings })
+    try {
+      clearAutoAdvance()
+      const result = await nextRound()
+      if (result?.action === 'next_round') {
+        broadcast('next_round', {
+          current_round: result.current_round,
+          current_clue: 0,
+          clue_started_at: Date.now(),
+        })
+        startClueTimer(0)
+      } else if (result?.action === 'game_finished') {
+        const rankings = await fetchRankings()
+        broadcast('game_finished', { rankings })
+      }
+      return result
+    } finally {
+      nextRoundInProgressRef.current = false
     }
-    return result
   }, [nextRound, broadcast, startClueTimer, fetchRankings, clearAutoAdvance])
 
   // Skip auto-advance countdown (manual "Saltear")
@@ -144,16 +156,27 @@ export function usePartyHost() {
   // Reset flags on new round
   useEffect(() => {
     roundEndTriggeredRef.current = false
-    nextRoundInProgressRef.current = false
   }, [room?.current_round])
 
+  // All-answered check: only count connected players
   useEffect(() => {
     if (!isHost || !room || room.status !== 'playing') return
     if (roundEndTriggeredRef.current) return
-    if (players.length > 0 && answeredPlayerIds.length >= players.length) {
+    const connectedCount = players.filter(p => p.connected).length
+    if (connectedCount > 0 && answeredPlayerIds.length >= connectedCount) {
       handleRoundEnd()
     }
   }, [isHost, room?.status, players.length, answeredPlayerIds.length, handleRoundEnd])
+
+  // Unanimous skip check: all connected players voted to skip
+  useEffect(() => {
+    if (!isHost || !room || room.status !== 'playing') return
+    if (roundEndTriggeredRef.current) return
+    const connectedCount = players.filter(p => p.connected).length
+    if (connectedCount > 0 && skipVotes.length >= connectedCount) {
+      handleRoundEnd()
+    }
+  }, [isHost, room?.status, players.length, skipVotes.length, handleRoundEnd])
 
   // Cleanup on unmount
   useEffect(() => {

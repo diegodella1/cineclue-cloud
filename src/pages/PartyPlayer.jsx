@@ -8,6 +8,7 @@ import PartyRanking from '../components/party/PartyRanking'
 import PartyQR from '../components/party/PartyQR'
 import ShareButton from '../components/shared/ShareButton'
 import { generatePartyImage, partyShareText } from '../lib/share'
+import PartyCountdown from '../components/party/PartyCountdown'
 import { sfx } from '../lib/sfx'
 
 export default function PartyPlayer() {
@@ -22,6 +23,11 @@ export default function PartyPlayer() {
   const reconnect = usePartyStore(s => s.reconnect)
   const isDoubleRound = usePartyStore(s => s.isDoubleRound)
   const hostDisconnected = usePartyStore(s => s.hostDisconnected)
+  const rematchCode = usePartyStore(s => s.rematchCode)
+  const progressionResult = usePartyStore(s => s.progressionResult)
+  const skipVotes = usePartyStore(s => s.skipVotes)
+  const voteSkip = usePartyStore(s => s.voteSkip)
+  const showCountdown = usePartyStore(s => s.showCountdown)
 
   const {
     handleSubmitAnswer,
@@ -130,6 +136,7 @@ export default function PartyPlayer() {
   if (status === 'waiting') {
     return (
       <div className="min-h-dvh bg-dark flex flex-col items-center justify-center p-6 max-w-[480px] mx-auto">
+        {showCountdown && <PartyCountdown from={3} />}
         <div className="text-center space-y-4 animate-fadeIn">
           <span className="text-5xl">🎬</span>
           <h1 className="font-serif text-2xl text-gold">Estás en la sala</h1>
@@ -216,6 +223,27 @@ export default function PartyPlayer() {
               Siguiente pista →
             </button>
           )}
+          {/* Vote skip movie button */}
+          {(() => {
+            const alreadyVoted = skipVotes.includes(playerId)
+            const connectedCount = players.filter(p => p.connected).length
+            return (
+              <button
+                onClick={voteSkip}
+                disabled={alreadyVoted}
+                className={`w-full mt-2 text-xs py-2 rounded-xl border transition-colors ${
+                  alreadyVoted
+                    ? 'border-gold/30 text-gold/60 bg-gold/5'
+                    : 'border-dark-border/30 text-text-secondary hover:border-error/30 hover:text-error'
+                }`}
+              >
+                {alreadyVoted
+                  ? `Saltear película (${skipVotes.length}/${connectedCount})`
+                  : `Saltear película${skipVotes.length > 0 ? ` (${skipVotes.length}/${connectedCount})` : ''}`
+                }
+              </button>
+            )
+          })()}
         </div>
 
         {/* Answer input */}
@@ -276,6 +304,25 @@ export default function PartyPlayer() {
             </div>
           )}
 
+          {progressionResult && (
+            <div className="flex gap-3 justify-center animate-fadeIn">
+              {progressionResult.elo_delta !== 0 && (
+                <div className={`text-center px-4 py-2 rounded-xl border ${progressionResult.elo_delta > 0 ? 'border-success/30 bg-success/10' : 'border-error/30 bg-error/10'}`}>
+                  <p className="text-xs text-text-secondary">ELO</p>
+                  <p className={`text-lg font-mono font-bold ${progressionResult.elo_delta > 0 ? 'text-success' : 'text-error'}`}>
+                    {progressionResult.elo_delta > 0 ? '+' : ''}{progressionResult.elo_delta}
+                  </p>
+                </div>
+              )}
+              {progressionResult.xp_earned > 0 && (
+                <div className="text-center px-4 py-2 rounded-xl border border-gold/30 bg-gold/10">
+                  <p className="text-xs text-text-secondary">XP</p>
+                  <p className="text-lg font-mono font-bold text-gold">+{progressionResult.xp_earned}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           <PartyRanking rankings={rankings} highlightPlayerId={playerId} />
 
           {(() => {
@@ -305,13 +352,29 @@ export default function PartyPlayer() {
           })()}
 
           <div className="flex flex-col items-center gap-3 pt-2">
+            {rematchCode && (
+              <button
+                onClick={() => {
+                  const savedName = sessionStorage.getItem('party_display_name')
+                  const savedAvatar = sessionStorage.getItem('party_avatar')
+                  reset()
+                  const params = new URLSearchParams({ code: rematchCode })
+                  if (savedName) params.set('name', savedName)
+                  if (savedAvatar) params.set('avatar', savedAvatar)
+                  navigate(`/party/join?${params.toString()}`)
+                }}
+                className="w-full bg-gold text-dark font-bold py-3 rounded-xl hover:bg-gold-light transition-colors animate-fadeIn"
+              >
+                Revancha
+              </button>
+            )}
             <PartyQR url="https://cineclue.vercel.app" size={160} />
             <p className="text-text-secondary text-xs">Descargá la app</p>
             <button
               onClick={handleExit}
-              className="border border-gold text-gold font-bold px-8 py-3 rounded-xl hover:bg-gold hover:text-dark transition-colors"
+              className="border border-dark-border text-text-secondary font-bold px-8 py-3 rounded-xl hover:text-white hover:border-gold transition-colors"
             >
-              Volver
+              Salir
             </button>
           </div>
         </div>
